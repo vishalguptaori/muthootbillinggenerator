@@ -1,0 +1,1326 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Muthoot Billing Generator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+<style>
+:root{
+  --bg:#0f1319; --panel:#161b24; --panel2:#1c222d; --line:#28303d;
+  --ink:#e8ecf2; --muted:#8d99ab; --gold:#e3b64a; --gold-dim:#8a6f22;
+  --hindi:#5fa8d3; --regional:#c98bdb; --ok:#5fbf8f; --warn:#e0854a; --bad:#e0565b;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:14px;line-height:1.5}
+.wrap{max-width:1120px;margin:0 auto;padding:28px 20px 80px}
+header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;
+  border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:24px}
+h1{font-size:22px;margin:0;letter-spacing:-.2px}
+h1 span{color:var(--gold)}
+.sub{color:var(--muted);font-size:13px;margin-top:4px}
+.tagline{font-family:var(--mono);font-size:11px;color:var(--muted);text-align:right}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);
+  margin:0 0 12px;font-weight:600}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px;margin-bottom:16px}
+/* dropzone */
+#drop{border:1.5px dashed var(--line);border-radius:10px;padding:34px 20px;text-align:center;
+  cursor:pointer;transition:.15s;background:var(--panel)}
+#drop:hover,#drop.over{border-color:var(--gold);background:var(--panel2)}
+#drop b{color:var(--gold)}
+#drop p{margin:6px 0 0;color:var(--muted);font-size:12.5px}
+/* file list */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-weight:600;color:var(--muted);font-size:11px;text-transform:uppercase;
+  letter-spacing:.06em;padding:7px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:8px 10px;border-bottom:1px solid #202836;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+td.num,th.num{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
+.pill{display:inline-block;font-family:var(--mono);font-size:10.5px;padding:2px 7px;border-radius:4px;
+  border:1px solid var(--line);color:var(--muted)}
+.pill.vox{color:#7fd6c0;border-color:#2c5348}
+.pill.seamless{color:#d9b06a;border-color:#54452a}
+.pill.bad{color:var(--bad);border-color:#5b2b2d}
+.x{background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;line-height:1;padding:0 4px}
+.x:hover{color:var(--bad)}
+/* settings */
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}
+label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);
+  margin-bottom:5px;font-weight:600}
+select{background:var(--panel2);border:1px solid var(--line);color:var(--ink);border-radius:6px;
+  padding:6px 8px;font-size:12.5px;font-family:inherit}
+input[type=text],input[type=number],textarea{width:100%;background:var(--panel2);border:1px solid var(--line);
+  color:var(--ink);border-radius:6px;padding:8px 10px;font-family:var(--mono);font-size:13px}
+input:focus,textarea:focus{outline:2px solid var(--gold-dim);outline-offset:0;border-color:var(--gold-dim)}
+textarea{resize:vertical;min-height:52px;line-height:1.5}
+.check{display:flex;align-items:flex-start;gap:9px;margin-top:12px;font-size:13px;color:var(--ink)}
+.check input{margin-top:3px;accent-color:var(--gold)}
+.check small{display:block;color:var(--muted);font-size:11.5px}
+.hint{color:var(--muted);font-size:11.5px;margin-top:6px}
+details summary{cursor:pointer;color:var(--muted);font-size:12px;list-style:none;user-select:none}
+details summary::-webkit-details-marker{display:none}
+details summary:before{content:"▸ ";color:var(--gold)}
+details[open] summary:before{content:"▾ "}
+/* pulse ladder */
+.ladder{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.rung{font-family:var(--mono);font-size:11px;border:1px solid var(--line);border-radius:5px;
+  padding:5px 9px;color:var(--muted);background:var(--panel2)}
+.rung b{color:var(--gold);font-weight:600}
+/* buttons */
+button.go{background:var(--gold);color:#20180a;border:none;border-radius:7px;padding:11px 22px;
+  font-size:14px;font-weight:650;cursor:pointer;transition:.15s}
+button.go:hover:not(:disabled){filter:brightness(1.1)}
+button.go:disabled{opacity:.45;cursor:not-allowed}
+button.dl{background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:6px;
+  padding:7px 13px;font-size:12.5px;cursor:pointer;font-weight:550}
+button.dl:hover{border-color:var(--gold);color:var(--gold)}
+button.dl.primary{border-color:var(--gold);color:var(--gold)}
+.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+/* kpis */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.kpi{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:13px 15px}
+.kpi .k{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600}
+.kpi .v{font-family:var(--mono);font-size:22px;margin-top:5px;font-variant-numeric:tabular-nums}
+.kpi .n{font-size:11px;color:var(--muted);margin-top:2px}
+.v.gold{color:var(--gold)} .v.h{color:var(--hindi)} .v.r{color:var(--regional)}
+/* progress */
+#progWrap{display:none;margin-top:14px}
+.bar{height:5px;background:var(--panel2);border-radius:3px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--gold);width:0;transition:width .2s}
+#progText{font-family:var(--mono);font-size:11.5px;color:var(--muted);margin-top:7px}
+.alert{border-radius:7px;padding:10px 13px;font-size:12.5px;margin-top:12px;border:1px solid}
+.alert.warn{border-color:#5a3f22;background:#241a10;color:#e8b57e}
+.alert.bad{border-color:#5b2b2d;background:#241314;color:#eb8f92}
+.alert.ok{border-color:#2c5348;background:#0f2019;color:#8fd9b6}
+#results{display:none}
+.foot{color:var(--muted);font-size:11.5px;text-align:center;margin-top:26px}
+</style>
+
+<div class="wrap">
+<header>
+  <div>
+    <h1>Muthoot <span>Billing Generator</span></h1>
+    <div class="sub">Raw call exports in, invoice working file out. Everything runs in this browser — no upload, no server.</div>
+  </div>
+  <div class="tagline">VOX · SEAMLESS<br>MINUTE-PULSE BILLING</div>
+</header>
+
+<div class="card">
+  <h2>1 · Raw call files</h2>
+  <div id="drop">
+    <b>Drop files here</b> or click to browse
+    <p>Call reports (VOX .csv, Seamless .xlsx) plus the Enach and PostDue paid files — several at once</p>
+  </div>
+  <input type="file" id="picker" multiple accept=".csv,.xlsx,.xls" style="display:none">
+  <div id="fileList" style="margin-top:14px"></div>
+</div>
+
+<div class="card">
+  <h2>2 · Billing rules</h2>
+  <div class="grid">
+    <div>
+      <label>Hindi rate (₹ / pulse)</label>
+      <div class="row" style="gap:6px">
+        <input type="number" id="hBase" value="2.2" step="0.01" style="flex:1">
+        <span style="color:var(--muted)">+</span>
+        <input type="number" id="hAdd" value="0.44" step="0.01" style="flex:1">
+      </div>
+      <div class="hint">Effective <b id="hEff">₹2.64</b></div>
+    </div>
+    <div>
+      <label>Regional rate (₹ / pulse)</label>
+      <div class="row" style="gap:6px">
+        <input type="number" id="rBase" value="2.8" step="0.01" style="flex:1">
+        <span style="color:var(--muted)">+</span>
+        <input type="number" id="rAdd" value="0.44" step="0.01" style="flex:1">
+      </div>
+      <div class="hint">Effective <b id="rEff">₹3.24</b></div>
+    </div>
+    <div>
+      <label>Skip RNR calls longer than</label>
+      <input type="number" id="rnrSec" value="40" step="1">
+      <div class="hint">Seconds. Dropped from billing <i>and</i> from the raw file.</div>
+    </div>
+    <div>
+      <label>Call types to exclude</label>
+      <input type="text" id="skipTypes" value="bot">
+      <div class="hint">Matched on <span style="font-family:var(--mono)">call_type</span>. Comma separated.</div>
+    </div>
+    <div>
+      <label>Billing period label</label>
+      <input type="text" id="period" placeholder="Jul-26">
+      <div class="hint">Used in output file names.</div>
+    </div>
+  </div>
+
+  <div class="ladder">
+    <span class="rung">Pulse rule</span>
+    <span class="rung">1s → <b>1</b></span>
+    <span class="rung">59s → <b>1</b></span>
+    <span class="rung">60s → <b>2</b></span>
+    <span class="rung">61s → <b>2</b></span>
+    <span class="rung">120s → <b>3</b></span>
+    <span class="rung" style="color:var(--muted)">floor(sec ÷ 60) + 1</span>
+  </div>
+
+  <div class="check"><input type="checkbox" id="skipTest" checked>
+    <span>Also skip rows flagged <span style="font-family:var(--mono)">is_test = true</span>
+      <small>On by default. Test calls are logged in the Skipped sheet, never billed. Untick to bill them.</small></span></div>
+
+  <div class="ladder" style="margin-top:10px">
+    <span class="rung">Dump keeps</span>
+    <span class="rung">connected calls only</span>
+    <span class="rung">call ID</span><span class="rung">phone</span><span class="rung">loan ID</span>
+    <span class="rung">LOB</span>
+    <span class="rung">duration</span><span class="rung"><b>billed minutes</b></span>
+    <span class="rung">start</span><span class="rung">end</span>
+    <span class="rung">disposition</span><span class="rung">sub-disposition</span>
+    <span class="rung">language</span>
+    <span class="rung">bot</span><span class="rung">campaign</span>
+  </div>
+
+  <details style="margin-top:16px">
+    <summary>Language detection, dispositions &amp; output options</summary>
+    <div style="margin-top:14px">
+      <div class="grid">
+        <div>
+          <label>Regional keywords in bot name</label>
+          <textarea id="regKeys">tamil, telugu, telegu, kannada, kanada, malayalam, malyalam, malayalm, marathi, bengali, bangla, gujarati, punjabi, odia, oriya, assamese, urdu</textarea>
+          <div class="hint">Bot name matched against these. Anything else — including a bot with no language in the name — bills as Hindi.</div>
+        </div>
+        <div>
+          <label>Dispositions treated as RNR</label>
+          <textarea id="rnrLabels">RNR</textarea>
+          <div class="hint">Comma separated, case insensitive, matched on the <span style="font-family:var(--mono)">disposition</span> column.</div>
+        </div>
+      </div>
+      <div class="grid" style="margin-top:14px">
+        <div>
+          <label>Paid-file statuses that count as paid</label>
+          <textarea id="paidWords">success, resolved, paid, cleared, collected, closed</textarea>
+          <div class="hint">Matched on any column with “status” in its name. A file with no status column counts every row.</div>
+        </div>
+        <div>
+          <label>… and statuses that never count</label>
+          <textarea id="notPaidWords">unresolved, unpaid, not, non, failed, fail, pending, reject, cancel, bounce, return, dishonour, dishonor, partial</textarea>
+          <div class="hint">Checked first and always wins, so “Unresolved” and “Not Paid” cannot slip through.</div>
+        </div>
+      </div>
+      <div class="check"><input type="checkbox" id="zeroPulse">
+        <span>Bill zero-duration calls as 1 pulse
+          <small>Off by default — unanswered / busy rows (duration 0) carry no pulse.</small></span></div>
+      <div class="check"><input type="checkbox" id="dropDupes">
+        <span>Drop duplicate call IDs across files
+          <small>Duplicates are always counted and reported. Tick this to also remove them from billing and raw output.</small></span></div>
+      <div class="check"><input type="checkbox" id="fullDump">
+        <span>Keep every original column in the raw dump
+          <small>Off by default — the dump carries only the billing columns (call ID, phone, loan ID, duration, pulse, start, end, disposition, sub disposition, bot, campaign) under their original headers, and only calls that actually connected.</small></span></div>
+      <div class="check"><input type="checkbox" id="forceCsv">
+        <span>Return raw files as CSV instead of Excel
+          <small>Off by default — every download comes back as .xlsx, including files that arrived as CSV. Switch this on if a workbook is too heavy for Excel to reopen comfortably.</small></span></div>
+    </div>
+  </details>
+</div>
+
+<div class="card">
+  <h2>3 · Generate</h2>
+  <div class="row">
+    <button class="go" id="run" disabled>Generate billing files</button>
+    <span class="hint" id="readyNote">Add at least one raw file to start.</span>
+  </div>
+  <div id="progWrap"><div class="bar"><i id="progBar"></i></div><div id="progText"></div></div>
+  <div id="issues"></div>
+</div>
+
+<div id="results">
+  <div class="card">
+    <h2>Invoice summary</h2>
+    <div class="kpis" id="kpis"></div>
+    <div style="margin-top:18px;overflow-x:auto"><table id="invTable"></table></div>
+    <div id="checkNote"></div>
+  </div>
+
+  <div class="card">
+    <h2>Downloads</h2>
+    <div class="row" id="dlRow"></div>
+    <div class="hint" id="dlNote"></div>
+  </div>
+
+  <div class="card">
+    <h2>File reconciliation</h2>
+    <div style="overflow-x:auto"><table id="fileTable"></table></div>
+  </div>
+
+  <div class="card">
+    <h2>Product summary</h2>
+    <div style="overflow-x:auto"><table id="sumTable"></table></div>
+    <div id="sumNote"></div>
+  </div>
+
+  <div class="card">
+    <h2>Bot-wise breakdown</h2>
+    <div style="overflow-x:auto"><table id="botTable"></table></div>
+  </div>
+</div>
+
+<div class="foot">Muthoot Billing Generator · files never leave this device</div>
+</div>
+
+<script>
+/* ---------- streaming xlsx writer (no full-document string in memory) ---------- */
+var XW = (function(){
+  var CRC = (function(){ var t = new Int32Array(256);
+    for(var n = 0; n < 256; n++){ var c = n;
+      for(var k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+      t[n] = c; } return t; })();
+  function crc32(buf, crc){
+    crc = (crc === undefined ? 0 : crc) ^ -1;
+    for(var i = 0; i < buf.length; i++) crc = (crc >>> 8) ^ CRC[(crc ^ buf[i]) & 0xFF];
+    return (crc ^ -1) >>> 0;
+  }
+  var enc = new TextEncoder();
+
+  var HAS_PAKO = typeof pako !== 'undefined';
+  function Entry(name){
+    this.name = name; this.chunks = []; this.crc = 0; this.raw = 0; this.comp = 0;
+    this.method = HAS_PAKO ? 8 : 0;
+    var self = this;
+    if(HAS_PAKO){
+      this.def = new pako.Deflate({ raw:true, level:6 });
+      this.def.onData = function(c){ self.chunks.push(c); self.comp += c.length; };
+    }
+  }
+  Entry.prototype.push = function(str, last){
+    var b = enc.encode(str);
+    this.crc = crc32(b, this.crc); this.raw += b.length;
+    if(this.def) this.def.push(b, !!last);
+    else { this.chunks.push(b); this.comp += b.length; }
+  };
+  Entry.prototype.end = function(){ if(this.def) this.def.push(new Uint8Array(0), true); };
+
+  function u32(a, o, v){ a[o] = v & 255; a[o+1] = (v>>>8)&255; a[o+2] = (v>>>16)&255; a[o+3] = (v>>>24)&255; }
+  function u16(a, o, v){ a[o] = v & 255; a[o+1] = (v>>>8)&255; }
+
+  function zip(entries){
+    var parts = [], central = [], offset = 0;
+    entries.forEach(function(e){
+      var nm = enc.encode(e.name);
+      var h = new Uint8Array(30 + nm.length);
+      u32(h,0,0x04034b50); u16(h,4,20); u16(h,6,0x0800); u16(h,8,e.method);
+      u16(h,10,0); u16(h,12,0x2821);
+      u32(h,14,e.crc); u32(h,18,e.comp); u32(h,22,e.raw);
+      u16(h,26,nm.length); u16(h,28,0); h.set(nm,30);
+      parts.push(h); for(var i=0;i<e.chunks.length;i++) parts.push(e.chunks[i]);
+      var c = new Uint8Array(46 + nm.length);
+      u32(c,0,0x02014b50); u16(c,4,20); u16(c,6,20); u16(c,8,0x0800); u16(c,10,e.method);
+      u16(c,12,0); u16(c,14,0x2821);
+      u32(c,16,e.crc); u32(c,20,e.comp); u32(c,24,e.raw);
+      u16(c,28,nm.length); u16(c,30,0); u16(c,32,0); u16(c,34,0); u16(c,36,0);
+      u32(c,38,0); u32(c,42,offset); c.set(nm,46);
+      central.push(c);
+      offset += h.length + e.comp;
+    });
+    var cdSize = central.reduce(function(a,b){ return a + b.length; }, 0);
+    var eocd = new Uint8Array(22);
+    u32(eocd,0,0x06054b50); u16(eocd,4,0); u16(eocd,6,0);
+    u16(eocd,8,entries.length); u16(eocd,10,entries.length);
+    u32(eocd,12,cdSize); u32(eocd,16,offset); u16(eocd,20,0);
+    return new Blob(parts.concat(central, [eocd]), { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  }
+
+  function colName(n){ var s = ''; n++; while(n > 0){ var m = (n-1) % 26; s = String.fromCharCode(65+m) + s; n = (n-m-1)/26; } return s; }
+  function xesc(s){
+    s = String(s);
+    if(/[&<>\u0000-\u0008\u000B\u000C\u000E-\u001F]/.test(s)){
+      s = s.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, function(c){
+             return '_x' + ('000' + c.charCodeAt(0).toString(16)).slice(-4) + '_'; })
+           .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+    return s;
+  }
+  var EPOCH = Date.UTC(1899,11,30);
+  function serial(d){
+    var ms = Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours(), d.getMinutes(), d.getSeconds(), d.getMilliseconds());
+    return (ms - EPOCH) / 86400000;
+  }
+  function safeName(n, i){
+    var s = String(n || ('Sheet' + (i+1))).replace(/[\\\/\?\*\[\]:]/g,'_').slice(0,31);
+    return s || ('Sheet' + (i+1));
+  }
+
+  /* sheets: [{name, rows: fn(emit) or array}] where emit(rowArray) */
+  async function write(sheets, onProgress){
+    var entries = [];
+    var ct = new Entry('[Content_Types].xml');
+    var ctXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+      '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+      '<Default Extension="xml" ContentType="application/xml"/>' +
+      '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
+      '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>';
+    for(var i = 0; i < sheets.length; i++)
+      ctXml += '<Override PartName="/xl/worksheets/sheet' + (i+1) + '.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>';
+    ct.push(ctXml + '</Types>', true); ct.end(); entries.push(ct);
+
+    var rels = new Entry('_rels/.rels');
+    rels.push('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>', true);
+    rels.end(); entries.push(rels);
+
+    var wbXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>';
+    var wbRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">';
+    sheets.forEach(function(s, i){
+      wbXml += '<sheet name="' + xesc(safeName(s.name, i)) + '" sheetId="' + (i+1) + '" r:id="rId' + (i+1) + '"/>';
+      wbRels += '<Relationship Id="rId' + (i+1) + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet' + (i+1) + '.xml"/>';
+    });
+    wbRels += '<Relationship Id="rId' + (sheets.length+1) + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>';
+    var wbE = new Entry('xl/workbook.xml'); wbE.push(wbXml + '</sheets></workbook>', true); wbE.end(); entries.push(wbE);
+    var wrE = new Entry('xl/_rels/workbook.xml.rels'); wrE.push(wbRels, true); wrE.end(); entries.push(wrE);
+
+    var st = new Entry('xl/styles.xml');
+    st.push('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+      '<numFmts count="4"><numFmt numFmtId="164" formatCode="yyyy\\-mm\\-dd\\ hh:mm:ss"/><numFmt numFmtId="165" formatCode="yyyy\\-mm\\-dd"/><numFmt numFmtId="166" formatCode="#,##0.00"/><numFmt numFmtId="167" formatCode="0.0%"/></numFmts>' +
+      '<fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts>' +
+      '<fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>' +
+      '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>' +
+      '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
+      '<cellXfs count="6">' +
+      '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' +
+      '<xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>' +
+      '<xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>' +
+      '<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>' +
+      '<xf numFmtId="166" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>' +
+      '<xf numFmtId="167" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>' +
+      '</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>', true);
+    st.end(); entries.push(st);
+
+    for(var si = 0; si < sheets.length; si++){
+      var sh = sheets[si];
+      var e = new Entry('xl/worksheets/sheet' + (si+1) + '.xml');
+      var head = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">';
+      if(sh.cols && sh.cols.length){
+        head += '<cols>';
+        sh.cols.forEach(function(w, i){ head += '<col min="' + (i+1) + '" max="' + (i+1) + '" width="' + w + '" customWidth="1"/>'; });
+        head += '</cols>';
+      }
+      e.push(head + '<sheetData>');
+      var buf = [], rn = 0;
+      var emit = function(row){
+        rn++;
+        if(row == null){ return; }
+        var x = '<row r="' + rn + '">';
+        for(var c = 0; c < row.length; c++){
+          var v = row[c];
+          if(v == null || v === '') continue;
+          var ref = colName(c) + rn;
+          if(typeof v === 'number'){
+            if(!isFinite(v)) { x += '<c r="' + ref + '" t="inlineStr"><is><t>' + xesc(String(v)) + '</t></is></c>'; continue; }
+            x += '<c r="' + ref + '"><v>' + v + '</v></c>';
+          } else if(typeof v === 'boolean'){
+            x += '<c r="' + ref + '" t="b"><v>' + (v ? 1 : 0) + '</v></c>';
+          } else if(v instanceof Date){
+            if(isNaN(v)) continue;
+            var st2 = (v.getHours() || v.getMinutes() || v.getSeconds()) ? 1 : 2;
+            x += '<c r="' + ref + '" s="' + st2 + '"><v>' + serial(v) + '</v></c>';
+          } else if(typeof v === 'object' && v.pct != null){
+            x += '<c r="' + ref + '" s="5"><v>' + v.pct + '</v></c>';
+          } else if(typeof v === 'object' && v.pct != null){
+            x += '<c r="' + ref + '" s="5"><v>' + v.pct + '</v></c>';
+          } else if(typeof v === 'object' && v.f){
+            x += '<c r="' + ref + '"' + (v.z ? ' s="4"' : '') + '><f>' + xesc(v.f) + '</f>' +
+                 (v.v != null ? '<v>' + v.v + '</v>' : '') + '</c>';
+          } else if(typeof v === 'object' && v.bold){
+            x += '<c r="' + ref + '" s="3" t="inlineStr"><is><t xml:space="preserve">' + xesc(v.v) + '</t></is></c>';
+          } else {
+            x += '<c r="' + ref + '" t="inlineStr"><is><t xml:space="preserve">' + xesc(v) + '</t></is></c>';
+          }
+        }
+        buf.push(x + '</row>');
+        if(buf.length >= 500){ e.push(buf.join('')); buf = []; }
+      };
+      if(typeof sh.rows === 'function') await sh.rows(emit, onProgress);
+      else for(var r = 0; r < sh.rows.length; r++) emit(sh.rows[r]);
+      if(buf.length) e.push(buf.join(''));
+      e.push('</sheetData></worksheet>', true); e.end();
+      entries.push(e);
+    }
+    return zip(entries);
+  }
+  return { write: write };
+})();
+
+/* ---------------- helpers ---------------- */
+const $ = id => document.getElementById(id);
+const HAS_ZIP = typeof pako !== 'undefined';
+window.addEventListener('load', () => {
+  const missing = [];
+  if(typeof Papa === 'undefined') missing.push('the CSV reader');
+  if(typeof XLSX === 'undefined') missing.push('the Excel reader');
+  if(!HAS_ZIP) missing.push('the Excel compressor (xlsx output falls back to CSV)');
+  if(missing.length) $('issues').innerHTML =
+    '<div class="alert warn">Could not load ' + missing.join(' and ') +
+    '. Check this device\u2019s internet access or firewall, then reload.</div>';
+});
+const fmt = n => (n||0).toLocaleString('en-IN');
+const money = n => '₹' + (n||0).toLocaleString('en-IN',{minimumFractionDigits:2, maximumFractionDigits:2});
+const tick = () => new Promise(r => setTimeout(r, 0));
+const norm = s => String(s==null?'':s).trim().toLowerCase().replace(/[\s_\-]+/g,' ');
+
+const DUR_KEYS  = ['duration seconds','call duration','duration','call duration seconds','duration sec','talk time'];
+const DISP_KEYS = ['disposition','call disposition','disposition vo1','sts disposition'];
+const TYPE_KEYS = ['call type','calltype'];
+const PROD_KEYS = ['var sub product','sub product','subproduct','product','lob'];
+const LOAN_KEYS = ['var loan account number','loan account number','loan account no','loan id','lan','loan number'];
+const PHONE_KEYS = ['caller id','phone number','var phone number','mobile number','msisdn'];
+const DATE_KEYS = ['created at','call started at','calling triggered time','call start time','start time','call answered at','inserted date'];
+const TEST_KEYS = ['is test','test call'];
+const LANG_KEYS = ['var language','language','var lang','lang'];
+/* keyword -> the full name we print in the dump */
+const LANG_NAMES = { hindi:'Hindi', hindhi:'Hindi', english:'English', tamil:'Tamil', tamizh:'Tamil',
+  telugu:'Telugu', telegu:'Telugu', kannada:'Kannada', kanada:'Kannada', malayalam:'Malayalam',
+  malyalam:'Malayalam', malayalm:'Malayalam', marathi:'Marathi', bengali:'Bengali', bangla:'Bengali',
+  gujarati:'Gujarati', punjabi:'Punjabi', odia:'Odia', oriya:'Odia', assamese:'Assamese', urdu:'Urdu' };
+function titleWord(s){ s = String(s).trim(); return s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : ''; }
+/* Full language name for a row: the report's own language column when it is filled,
+   otherwise read off the bot name — the same reading that decides Hindi vs Regional billing. */
+function langName(row, ix, cfg){
+  if(ix.lang > -1){
+    const v = String(row[ix.lang] == null ? '' : row[ix.lang]).trim();
+    if(v && /^[A-Za-z ]{3,20}$/.test(v)) return LANG_NAMES[v.toLowerCase()] || titleWord(v);
+  }
+  const bot = String(ix.bot > -1 ? (row[ix.bot] == null ? '' : row[ix.bot]) : '').toLowerCase();
+  for(const k of cfg.regionalKeys) if(k && bot.includes(k)) return LANG_NAMES[k] || titleWord(k);
+  if(bot.includes('hindi') || bot.includes('hindhi')) return 'Hindi';
+  if(bot.includes('english')) return 'English';
+  return 'Hindi (assumed)';
+}
+const BOT_KEYS  = ['bot name','botname','bot','agent name'];
+const ID_KEYS   = ['session id','call id','callid','id'];
+const CAMP_KEYS = ['campaign name','campaign','campaign id'];
+
+function findCol(header, keys){
+  const n = header.map(norm);
+  for(const k of keys){ const i = n.indexOf(k); if(i > -1) return i; }
+  for(const k of keys){ const i = n.findIndex(h => h === k || (h.endsWith(' ' + k))); if(i > -1) return i; }
+  return -1;
+}
+const KEEP_SPEC = [
+  { label:'Call ID',         keys:['session id','call id','callid'] },
+  { label:'Phone number',    keys:['caller id','phone number','customer number','mobile number','msisdn'] },
+  { label:'Loan ID',         keys:['var loan account number','loan account number','loan id','var loan id'] },
+  { label:'LOB',             keys:['var sub product','sub product','subproduct','product','lob'] },
+  { label:'Call duration',   keys:['duration seconds','call duration','duration'] },
+  { label:'Billed minutes',  pulse:true },
+  { label:'Call start',      keys:['created at','call started at','calling triggered time','call start time','start time','call answered at'] },
+  { label:'Call end',        keys:['completed at','call ended at','call hungup time','call hangup time','call end time'] },
+  { label:'Disposition',     keys:['disposition'] },
+  { label:'Sub disposition', keys:['analysis sub disposition','disposition vo2','sub disposition'] },
+  { label:'Bot name',        keys:['bot name'] },
+  { label:'Language',        lang:true },
+  { label:'Campaign name',   keys:['campaign name'] }
+];
+/* Finds every column matching a field, in key order. Several source columns can feed
+   one field (VOX carries two sub-disposition columns) — first non-empty value wins. */
+function findAllCols(header, keys){
+  const n = header.map(norm), hit = [];
+  for(const k of keys) n.forEach((h, i) => { if(h === k && hit.indexOf(i) < 0) hit.push(i); });
+  return hit;
+}
+function buildKeepPlan(header){
+  const idx = [], names = [], missing = [];
+  for(const f of KEEP_SPEC){
+    if(f.pulse){ idx.push('#pulse'); names.push(PULSE_COL); continue; }
+    if(f.lang){ idx.push('#lang'); names.push('Language'); continue; }
+    const hits = findAllCols(header, f.keys);
+    if(!hits.length){ missing.push(f.label); continue; }
+    /* when two columns carry the same field, label with the lower-case spelling */
+    let pick = hits[0];
+    for(const i of hits){ if(String(header[i]) === String(header[i]).toLowerCase()){ pick = i; break; } }
+    idx.push(hits); names.push(header[pick]);
+  }
+  return { idx, names, missing };
+}
+function trimRow(row, plan, pulse, lang){
+  const out = [];
+  for(const group of plan.idx){
+    if(group === '#pulse'){ out.push(pulse); continue; }
+    if(group === '#lang'){ out.push(lang); continue; }
+    let v = null;
+    for(const i of group){ const x = row[i]; if(x !== null && x !== undefined && x !== ''){ v = x; break; } }
+    out.push(v);
+  }
+  return out;
+}
+function detect(header){
+  const dur = findCol(header, DUR_KEYS);
+  const disp = findCol(header, DISP_KEYS);
+  const bot = findCol(header, BOT_KEYS);
+  const n = header.map(norm);
+  const format = n.includes('duration seconds') ? 'VOX' : (n.includes('call duration') ? 'Seamless' : 'Custom');
+  return { dur, disp, bot, id: findCol(header, ID_KEYS), camp: findCol(header, CAMP_KEYS),
+           ctype: findCol(header, TYPE_KEYS), test: findCol(header, TEST_KEYS),
+           prod: findCol(header, PROD_KEYS), loan: findCol(header, LOAN_KEYS),
+           phone: findCol(header, PHONE_KEYS), date: findCol(header, DATE_KEYS),
+           lang: findCol(header, LANG_KEYS),
+           format, ok: dur > -1 };
+}
+function toSec(v){
+  if(v == null || v === '') return 0;
+  if(v instanceof Date) return 0;
+  const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/[, ]/g,''));
+  return isFinite(n) && n > 0 ? n : 0;
+}
+function durIssue(v){
+  if(v == null || v === '' || v instanceof Date) return false;
+  if(typeof v === 'number') return !isFinite(v);
+  return !isFinite(parseFloat(String(v).replace(/[, ]/g,'')));
+}
+function pulseOf(sec, cfg){
+  if(!(sec > 0)) return cfg.zeroPulse ? 1 : 0;
+  return Math.floor(sec / 60) + 1;
+}
+function bucketOf(botName, cfg){
+  const b = String(botName == null ? '' : botName).toLowerCase();
+  for(const k of cfg.regionalKeys){ if(k && b.includes(k)) return { bucket:'Regional', lang:k }; }
+  if(b.includes('hindi') || b.includes('hindhi')) return { bucket:'Hindi', lang:'hindi' };
+  if(b.includes('english')) return { bucket:'Hindi', lang:'english' };
+  return { bucket:'Hindi', lang:'not stated → Hindi' };
+}
+function esc(v){
+  if(v == null) return '';
+  if(v instanceof Date) return isNaN(v) ? '' : xlDate(v);
+  const s = String(v);
+  return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s;
+}
+function xlDate(d){
+  const p = n => String(n).padStart(2,'0');
+  const t = d.getHours() || d.getMinutes() || d.getSeconds();
+  const base = d.getFullYear() + '-' + p(d.getMonth()+1) + '-' + p(d.getDate());
+  return t ? base + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds()) : base;
+}
+function blobFromLines(lines){
+  const parts = ['\uFEFF']; let buf = [];
+  for(const l of lines){ buf.push(l); if(buf.length >= 2000){ parts.push(buf.join('\r\n') + '\r\n'); buf = []; } }
+  if(buf.length) parts.push(buf.join('\r\n') + '\r\n');
+  return new Blob(parts, { type:'text/csv;charset=utf-8;' });
+}
+function download(blob, name){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
+}
+
+/* ---------------- file intake ---------------- */
+let files = [];
+const drop = $('drop'), picker = $('picker');
+drop.onclick = () => picker.click();
+picker.onchange = e => addFiles(e.target.files);
+['dragenter','dragover'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave','drop'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => addFiles(e.dataTransfer.files));
+
+function guessRole(name){
+  const n = name.toLowerCase();
+  if(/enach/.test(n)) return 'paid-pre';
+  if(/paid|clearance|settle|success/.test(n)) return /predue|pre.due|pre_/.test(n) ? 'paid-pre' : 'paid-post';
+  return 'calls';
+}
+function addFiles(list){
+  for(const f of list){
+    const ext = f.name.split('.').pop().toLowerCase();
+    if(!['csv','xlsx','xls'].includes(ext)) continue;
+    if(files.some(x => x.file.name === f.name && x.file.size === f.size)) continue;
+    files.push({ file:f, kind: ext === 'csv' ? 'csv' : 'xlsx', role: guessRole(f.name) });
+  }
+  picker.value = ''; renderFiles();
+}
+function renderFiles(){
+  const box = $('fileList');
+  if(!files.length){ box.innerHTML = ''; $('run').disabled = true; $('readyNote').textContent = 'Add at least one raw file to start.'; return; }
+  const roles = [['calls','Call report'],['paid-pre','Paid file — PreDue'],['paid-post','Paid file — PostDue']];
+  let h = '<table><tr><th>File</th><th>Treat as</th><th class="num">Size</th><th></th></tr>';
+  files.forEach((f, i) => {
+    const opts = roles.map(r => '<option value="' + r[0] + '"' + (f.role === r[0] ? ' selected' : '') + '>' + r[1] + '</option>').join('');
+    h += '<tr><td>' + f.file.name + '</td>' +
+         '<td><select class="role" data-i="' + i + '">' + opts + '</select></td>' +
+         '<td class="num">' + (f.file.size/1048576).toFixed(1) + ' MB</td>' +
+         '<td style="text-align:right"><button class="x" data-i="' + i + '">×</button></td></tr>';
+  });
+  box.innerHTML = h + '</table>';
+  box.querySelectorAll('.x').forEach(b => b.onclick = () => { files.splice(+b.dataset.i, 1); renderFiles(); });
+  box.querySelectorAll('.role').forEach(sel => sel.onchange = () => { files[+sel.dataset.i].role = sel.value; renderFiles(); });
+  $('run').disabled = false;
+  $('readyNote').textContent = files.length + ' file' + (files.length > 1 ? 's' : '') + ' ready.';
+}
+
+/* ---------------- config ---------------- */
+function readCfg(){
+  const hB = parseFloat($('hBase').value) || 0, hA = parseFloat($('hAdd').value) || 0;
+  const rB = parseFloat($('rBase').value) || 0, rA = parseFloat($('rAdd').value) || 0;
+  return {
+    hBase:hB, hAdd:hA, rBase:rB, rAdd:rA, hRate:+(hB+hA).toFixed(4), rRate:+(rB+rA).toFixed(4),
+    rnrSec: parseFloat($('rnrSec').value) || 0,
+    rnrLabels: $('rnrLabels').value.split(',').map(s => s.trim().toUpperCase()).filter(Boolean),
+    skipTypes: $('skipTypes').value.split(',').map(s => s.trim().toLowerCase()).filter(Boolean),
+    paidWords: $('paidWords').value.split(',').map(s => s.trim().toLowerCase()).filter(Boolean),
+    paidRe: statusWord($('paidWords').value.split(',').map(s => s.trim()).filter(Boolean)),
+    notPaidWords: $('notPaidWords').value.split(',').map(s => s.trim().toLowerCase()).filter(Boolean),
+    notPaidRe: statusWord($('notPaidWords').value.split(',').map(s => s.trim()).filter(Boolean)),
+    skipTest: $('skipTest').checked,
+    regionalKeys: $('regKeys').value.split(',').map(s => s.trim().toLowerCase()).filter(Boolean),
+    zeroPulse: $('zeroPulse').checked, dropDupes: $('dropDupes').checked, forceCsv: $('forceCsv').checked,
+    fullDump: $('fullDump').checked,
+    period: $('period').value.trim() || new Date().toISOString().slice(0,10)
+  };
+}
+function syncRates(){
+  const c = readCfg();
+  $('hEff').textContent = '₹' + c.hRate.toFixed(2);
+  $('rEff').textContent = '₹' + c.rRate.toFixed(2);
+}
+['hBase','hAdd','rBase','rAdd'].forEach(id => $(id).oninput = syncRates);
+syncRates();
+
+/* ---------------- processing ---------------- */
+const PULSE_COL = 'Billed Minutes';
+const SHORT_A = 30, SHORT_B = 10;   // short-call thresholds, seconds
+const KEEP_COLS = [26, 16, 26, 22, 13, 14, 21, 21, 20, 24, 30, 14, 32];
+
+function newCtx(){
+  return {
+    totals: { Hindi:{ pulse:0, calls:0, sec:0 }, Regional:{ pulse:0, calls:0, sec:0 } },
+    bots: new Map(), perFile: [], skipped: [], skippedCount: 0, dupes: 0, badDur: 0,
+    seen: new Set(), issues: [],
+    groups: new Map(), days: new Map(), noDate: 0,
+    paid: { PreDue:  { loans:new Set(), phones:new Set(), files:[] },
+            PostDue: { loans:new Set(), phones:new Set(), files:[] } }
+  };
+}
+function account(ctx, botName, sec, cfg, fileAgg, day){
+  const { bucket, lang } = bucketOf(botName, cfg);
+  const p = pulseOf(sec, cfg);
+  if(p === 0) return 0;                       // no pulse to bill, so no call to count
+  const t = ctx.totals[bucket];
+  t.pulse += p; t.calls += 1; t.sec += sec;
+  const key = (botName || '(blank)') + '||' + bucket;
+  let b = ctx.bots.get(key);
+  if(!b){ b = { bot: botName || '(blank)', bucket, lang, calls:0, sec:0, pulse:0 }; ctx.bots.set(key, b); }
+  b.calls++; b.sec += sec; b.pulse += p;
+  fileAgg[bucket].calls++; fileAgg[bucket].pulse += p;
+  if(day){
+    let d = ctx.days.get(day);
+    if(!d){ d = { day, Hindi:{ pulse:0, calls:0, sec:0 }, Regional:{ pulse:0, calls:0, sec:0 } }; ctx.days.set(day, d); }
+    d[bucket].pulse += p; d[bucket].calls += 1; d[bucket].sec += sec;
+  } else ctx.noDate += p;
+  return p;
+}
+/* returns a skip reason, or null to keep billing the row */
+function excludeReason(row, ix, cfg){
+  if(ix.ctype > -1){
+    const t = String(row[ix.ctype] == null ? '' : row[ix.ctype]).trim().toLowerCase();
+    if(t && cfg.skipTypes.indexOf(t) > -1) return 'call type = ' + t;
+  }
+  if(cfg.skipTest && ix.test > -1){
+    const v = String(row[ix.test] == null ? '' : row[ix.test]).trim().toLowerCase();
+    if(v === 'true' || v === 'yes' || v === '1') return 'test call';
+  }
+  return null;
+}
+/* Pre-due vs Post-due, read off the bot name and then the campaign name */
+function bucketDue(botName, campName){
+  const t = (String(botName == null ? '' : botName) + ' ' + String(campName == null ? '' : campName))
+              .toLowerCase().replace(/[\s_\-]+/g,'');
+  if(t.indexOf('postdue') > -1) return 'PostDue';
+  if(t.indexOf('predue') > -1) return 'PreDue';
+  return 'Unknown';
+}
+function phone10(v){
+  const d = String(v == null ? '' : v).replace(/\D/g,'');
+  return d.length > 10 ? d.slice(-10) : d;
+}
+/* one customer, identified by loan account where present */
+function custKey(row, ix, fallback){
+  if(ix.loan > -1){ const l = String(row[ix.loan] == null ? '' : row[ix.loan]).trim().toUpperCase(); if(l) return 'L:' + l; }
+  if(ix.phone > -1){ const p = phone10(row[ix.phone]); if(p) return 'P:' + p; }
+  return 'R:' + fallback;
+}
+function dayOf(v){
+  if(v instanceof Date) return isNaN(v) ? '' :
+    v.getFullYear() + '-' + String(v.getMonth()+1).padStart(2,'0') + '-' + String(v.getDate()).padStart(2,'0');
+  const m = String(v == null ? '' : v).match(/(\d{4})[-\/](\d{2})[-\/](\d{2})/);
+  if(m) return m[1] + '-' + m[2] + '-' + m[3];
+  const d = String(v == null ? '' : v).match(/(\d{2})[-\/](\d{2})[-\/](\d{4})/);
+  return d ? d[3] + '-' + d[2] + '-' + d[1] : '';
+}
+function groupAdd(ctx, row, ix, sec, pulse, rowNo){
+  const product = ix.prod > -1 ? (String(row[ix.prod] == null ? '' : row[ix.prod]).trim().toUpperCase() || 'NOT STATED') : 'NOT STATED';
+  const bucket = bucketDue(ix.bot > -1 ? row[ix.bot] : '', ix.camp > -1 ? row[ix.camp] : '');
+  const key = product + '||' + bucket;
+  let g = ctx.groups.get(key);
+  if(!g){ g = { product, bucket, all:new Set(), conn:new Set(), talk:0, pulse:0, first:'', last:'', rows:0,
+                lt30n:0, lt30s:0, lt10n:0, lt10s:0 };
+          ctx.groups.set(key, g); }
+  const cust = custKey(row, ix, rowNo);
+  g.all.add(cust); g.rows++;
+  const day = ix.date > -1 ? dayOf(row[ix.date]) : '';
+  if(day){ if(!g.first || day < g.first) g.first = day; if(!g.last || day > g.last) g.last = day; }
+  if(sec > 0){
+    g.conn.add(cust); g.talk += sec; g.pulse += pulse;
+    /* short connected calls — the under-10s set is a subset of the under-30s set */
+    if(sec < SHORT_A){ g.lt30n++; g.lt30s += sec; }
+    if(sec < SHORT_B){ g.lt10n++; g.lt10s += sec; }
+  }
+}
+function isRnr(v, cfg){ return cfg.rnrLabels.includes(String(v == null ? '' : v).trim().toUpperCase()); }
+
+function logSkip(ctx, fileName, reason, bot, disp, sec, id){
+  ctx.skippedCount++;
+  if(ctx.skipped.length < 20000) ctx.skipped.push([fileName, reason, bot, disp, sec, id]);
+}
+
+function parseCsvStream(file, onHeader, onRow, onProg){
+  return new Promise((resolve, reject) => {
+    let header = null;
+    Papa.parse(file, {
+      skipEmptyLines: 'greedy',
+      chunk: function(res, parser){
+        try{
+          for(const row of res.data){
+            if(!header){ header = row; onHeader(row); continue; }
+            onRow(row);
+          }
+        }catch(err){ parser.abort(); reject(err); return; }
+        onProg((res.meta.cursor || 0) / file.size);
+      },
+      complete: () => { header ? resolve(header) : reject(new Error(file.name + ' is empty')); },
+      error: reject
+    });
+  });
+}
+
+/* keep a CSV value as text unless it is unambiguously a number */
+function cellVal(v){
+  if(v == null || v === '') return null;
+  if(typeof v !== 'string') return v;
+  const t = v.trim();
+  if(t.length && t.length < 16 && /^-?\d+(\.\d+)?$/.test(t) && String(Number(t)) === t) return Number(t);
+  return v;
+}
+
+/* Paid / clearance files. Keys on the loan account column; where the file carries a
+   status column, only rows whose status reads as a success are counted. */
+const PAID_LOAN_KEYS = ['lan','loan account number','loan account no','loan number','loan id','loanid','agreement number','agreement no'];
+/* A status counts as paid only if a paid marker appears at a word boundary and no
+   not-paid marker does. Boundaries matter: "Unresolved" contains "resolved", and
+   "Not Paid" contains "paid". Not-paid always wins. */
+function statusWord(list){
+  return list.map(w => new RegExp('(^|[^a-z])' + w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'));
+}
+function isPaidStatus(text, cfg){
+  const t = String(text == null ? '' : text);
+  if(!t) return false;
+  for(const re of cfg.notPaidRe) if(re.test(t)) return false;
+  for(const re of cfg.paidRe) if(re.test(t)) return true;
+  return false;
+}
+const PAID_PHONE_KEYS = ['phone number','phone','mobile number','mobile','msisdn','contact number'];
+async function loadPaidFile(entry, ctx, cfg){
+  const f = entry.file, bucket = entry.role === 'paid-pre' ? 'PreDue' : 'PostDue';
+  let rows;
+  if(/\.csv$/i.test(f.name)){
+    const text = await f.text();
+    rows = Papa.parse(text, { skipEmptyLines:'greedy' }).data;
+  }else{
+    let wb;
+    try{ wb = XLSX.read(await f.arrayBuffer(), { cellDates:true }); }
+    catch(err){ throw new Error(f.name + ' could not be opened — if it is password protected, save an unprotected copy and try again.'); }
+    rows = [];
+    for(const n of wb.SheetNames){
+      const r = XLSX.utils.sheet_to_json(wb.Sheets[n], { header:1, raw:true, defval:null, blankrows:false });
+      if(r.length > rows.length) rows = r;
+    }
+  }
+  if(!rows.length) throw new Error(f.name + ' is empty.');
+  const header = rows[0].map(x => x == null ? '' : String(x));
+  const li = findCol(header, PAID_LOAN_KEYS), pi = findCol(header, PAID_PHONE_KEYS);
+  if(li < 0 && pi < 0) throw new Error('No loan account or phone column found in ' + f.name +
+    '. Expected a column such as “LAN” or “loan_account_number”.');
+  const statusCols = header.map(norm).map((h, i) => h.indexOf('status') > -1 ? i : -1).filter(i => i > -1);
+  const store = ctx.paid[bucket];
+  let matched = 0, rejected = 0;
+  for(let r = 1; r < rows.length; r++){
+    const row = rows[r];
+    if(!row || row.every(v => v == null || v === '')) continue;
+    if(statusCols.length){
+      let ok = false;
+      for(const c of statusCols) if(isPaidStatus(row[c], cfg)) ok = true;
+      if(!ok){ rejected++; continue; }
+    }
+    let any = false;
+    if(li > -1){ const l = String(row[li] == null ? '' : row[li]).trim().toUpperCase(); if(l){ store.loans.add(l); any = true; } }
+    if(pi > -1){ const p = phone10(row[pi]); if(p){ store.phones.add(p); any = true; } }
+    if(any) matched++;
+  }
+  const info = { name:f.name, bucket, rows: rows.length - 1, paid: matched, rejected,
+                 keyCol: li > -1 ? header[li] : header[pi],
+                 statusCols: statusCols.map(i => header[i]) };
+  store.files.push(info);
+  return info;
+}
+
+async function processCsv(entry, cfg, ctx, onProg){
+  const f = entry.file;
+  const fileAgg = { Hindi:{calls:0,pulse:0}, Regional:{calls:0,pulse:0} };
+  const st = { rowsIn:0, rowsOut:0, skipped:0, kept:0 };
+  let ix = null, plan = null;
+
+  const readHeader = header => {
+    ix = detect(header);
+    if(!ix.ok) throw new Error('No duration column found in ' + f.name + '. Expected a “duration_seconds” or “Call duration” column.');
+    plan = buildKeepPlan(header);
+    return plan.names.slice();
+  };
+  const handle = row => {                       // null = drop, else the trimmed row
+    st.rowsIn++;
+    const sec = toSec(row[ix.dur]);
+    if(durIssue(row[ix.dur])) ctx.badDur++;
+    const disp = ix.disp > -1 ? row[ix.disp] : '';
+    const bot = ix.bot > -1 ? row[ix.bot] : '';
+    const id = ix.id > -1 ? String(row[ix.id] || '') : '';
+    const why = excludeReason(row, ix, cfg);
+    if(why){ st.skipped++; logSkip(ctx, f.name, why, bot, disp, sec, id); return null; }
+    if(ix.disp > -1 && isRnr(disp, cfg) && sec > cfg.rnrSec){
+      st.skipped++; logSkip(ctx, f.name, 'RNR > ' + cfg.rnrSec + 's', bot, disp, sec, id); return null;
+    }
+    if(id){
+      if(ctx.seen.has(id)){
+        ctx.dupes++;
+        if(cfg.dropDupes){ st.skipped++; logSkip(ctx, f.name, 'Duplicate call ID', bot, disp, sec, id); return null; }
+      } else ctx.seen.add(id);
+    }
+    const p = account(ctx, bot, sec, cfg, fileAgg, ix.date > -1 ? dayOf(row[ix.date]) : '');
+    groupAdd(ctx, row, ix, sec, p, st.rowsIn);
+    st.rowsOut++;
+    if(!(sec > 0)) return null;                 // not connected — kept out of the dump
+    st.kept++;
+    return trimRow(row, plan, p, langName(row, ix, cfg));
+  };
+
+  const base = f.name.replace(/\.csv$/i, '');
+  let blob, outName;
+
+  if(cfg.forceCsv || !HAS_ZIP){
+    const lines = [];
+    await parseCsvStream(f,
+      h => { lines.push(readHeader(h).map(esc).join(',')); },
+      r => { const k = handle(r); if(k) lines.push(k.map(esc).join(',')); },
+      frac => onProg(Math.min(0.99, frac), st.rowsIn));
+    blob = blobFromLines(lines);
+    outName = base + '_billing_dump.csv';
+  }else{
+    blob = await XW.write([{ name: base.slice(0,31), cols: KEEP_COLS, rows: async (emit) => {
+      await parseCsvStream(f,
+        h => { emit(readHeader(h).map(v => ({ bold:1, v:v }))); },
+        r => { const k = handle(r); if(!k) return;
+               for(let i = 0; i < k.length; i++) if(typeof k[i] === 'string') k[i] = cellVal(k[i]);
+               emit(k); },
+        frac => onProg(Math.min(0.97, frac), st.rowsIn));
+    }}]);
+    outName = base + '_billing_dump.xlsx';
+  }
+  return { name:f.name, format: ix.format, rowsIn: st.rowsIn, rowsOut: st.rowsOut, skipped: st.skipped,
+           kept: st.kept, missing: plan.missing, fileAgg,
+           hasDisp: ix.disp > -1, hasBot: ix.bot > -1, blob, outName };
+}
+
+async function processXlsx(entry, cfg, ctx, onProg){
+  const f = entry.file;
+  onProg(0.02, 0);
+  const buf = await f.arrayBuffer();
+  await tick();
+  const wb = XLSX.read(buf, { cellDates:true });
+  let aoa = null, ix = null;
+  for(const name of wb.SheetNames){
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { header:1, raw:true, defval:null, blankrows:false });
+    if(!rows.length) continue;
+    const d = detect(rows[0].map(x => x == null ? '' : String(x)));
+    if(d.ok){ aoa = rows; ix = d; break; }
+  }
+  if(!aoa) throw new Error('No duration column found in ' + f.name + '. Expected a “Call duration” or “duration_seconds” column.');
+  onProg(0.4, 0);
+  await tick();
+
+  const plan = buildKeepPlan(aoa[0]);
+  const out = [plan.names.map(v => ({ bold:1, v:v }))];
+  const fileAgg = { Hindi:{calls:0,pulse:0}, Regional:{calls:0,pulse:0} };
+  let rowsIn = 0, rowsOut = 0, skipped = 0, kept = 0;
+  for(let i = 1; i < aoa.length; i++){
+    const row = aoa[i];
+    aoa[i] = null;                                  // release as we go
+    if(!row || row.every(v => v == null || v === '')) continue;
+    rowsIn++;
+    const sec = toSec(row[ix.dur]);
+    if(durIssue(row[ix.dur])) ctx.badDur++;
+    const disp = ix.disp > -1 ? row[ix.disp] : '';
+    const bot = ix.bot > -1 ? row[ix.bot] : '';
+    const id = ix.id > -1 ? String(row[ix.id] == null ? '' : row[ix.id]) : '';
+    const why = excludeReason(row, ix, cfg);
+    if(why){ skipped++; logSkip(ctx, f.name, why, bot, disp, sec, id); continue; }
+    if(ix.disp > -1 && isRnr(disp, cfg) && sec > cfg.rnrSec){
+      skipped++; logSkip(ctx, f.name, 'RNR > ' + cfg.rnrSec + 's', bot, disp, sec, id); continue;
+    }
+    if(id){
+      if(ctx.seen.has(id)){
+        ctx.dupes++;
+        if(cfg.dropDupes){ skipped++; logSkip(ctx, f.name, 'Duplicate call ID', bot, disp, sec, id); continue; }
+      } else ctx.seen.add(id);
+    }
+    const p = account(ctx, bot, sec, cfg, fileAgg, ix.date > -1 ? dayOf(row[ix.date]) : '');
+    groupAdd(ctx, row, ix, sec, p, rowsIn);
+    rowsOut++;
+    if(sec > 0){ kept++; out.push(trimRow(row, plan, p, langName(row, ix, cfg))); }
+    if(rowsIn % 4000 === 0){ onProg(0.4 + 0.4 * (i / aoa.length), rowsIn); await tick(); }
+  }
+  onProg(0.82, rowsIn);
+  await tick();
+
+  const base = f.name.replace(/\.(xlsx|xls|xlsm)$/i, '');
+  let blob, outName;
+  if(cfg.forceCsv || !HAS_ZIP){
+    blob = blobFromLines(out.map(r => r.map(v => esc(v && v.bold ? v.v : v)).join(',')));
+    outName = base + '_billing_dump.csv';
+  }else{
+    blob = await XW.write([{ name: base.slice(0,31), cols: KEEP_COLS, rows: out }]);
+    outName = base + '_billing_dump.xlsx';
+  }
+  return { name:f.name, format: ix.format, rowsIn, rowsOut, skipped, kept, missing: plan.missing, fileAgg,
+           hasDisp: ix.disp > -1, hasBot: ix.bot > -1, blob, outName };
+}
+/* ---------------- working file ---------------- */
+async function buildWorkbook(ctx, cfg){
+  const H = ctx.totals.Hindi, R = ctx.totals.Regional;
+  const hCost = +(H.pulse * cfg.hRate).toFixed(2), rCost = +(R.pulse * cfg.rRate).toFixed(2);
+  const b = v => ({ bold:1, v:v });
+  const label = (x, y) => x + ' + ' + y;
+
+  const invoice = [
+    [b('Details'), b('Minute Pulse (Total)'), b('Pricing'), b('Total Cost')],
+    ['Recurring Gen AI Voicebot (Hindi)', H.pulse, label(cfg.hBase, cfg.hAdd), { f:'B2*' + cfg.hRate, v:hCost, z:1 }],
+    ['Recurring Gen AI Voicebot (Regional)', R.pulse, label(cfg.rBase, cfg.rAdd), { f:'B3*' + cfg.rRate, v:rCost, z:1 }],
+    [null, null, 'Grand Total', { f:'SUM(D2:D3)', v:+(hCost + rCost).toFixed(2), z:1 }]
+  ];
+
+  const rowsIn = ctx.perFile.reduce((a,r) => a + r.rowsIn, 0);
+  const rowsOut = ctx.perFile.reduce((a,r) => a + r.rowsOut, 0);
+  const kept = ctx.perFile.reduce((a,r) => a + (r.kept || 0), 0);
+  const summary = [
+    [b('Billing period'), cfg.period],
+    [b('Generated on'), new Date()],
+    [],
+    [b('File'), b('Format'), b('Rows in file'), b('Rows skipped'), b('Calls counted'),
+     b('Connected calls in dump'), b('Hindi pulses'), b('Regional pulses')]
+  ];
+  ctx.perFile.forEach(r => summary.push([r.name, r.format, r.rowsIn, r.skipped, r.rowsOut,
+    r.kept, r.fileAgg.Hindi.pulse, r.fileAgg.Regional.pulse]));
+  summary.push([b('Total'), null, rowsIn, ctx.skippedCount, rowsOut, kept, H.pulse, R.pulse]);
+  summary.push([]);
+  summary.push([b('Rules applied')]);
+  summary.push(['Raw dump contents', 'connected calls only (duration above zero), limited to the billing columns, original headers kept']);
+  summary.push(['Minute pulse', 'floor(duration in seconds / 60) + 1 — a 1s call bills 1 minute, a 60s call bills 2']);
+  summary.push(['Zero-duration calls', cfg.zeroPulse ? 'billed as 1 pulse' : 'not billed']);
+  summary.push(['Call types excluded', cfg.skipTypes.length ? cfg.skipTypes.join(', ') + ' — removed from billing and from the dump' : 'none']);
+  summary.push(['Test calls', cfg.skipTest ? 'rows flagged is_test = true are removed from billing and from the dump' : 'billed like any other call']);
+  summary.push(['RNR exclusion', 'disposition in [' + cfg.rnrLabels.join(', ') + '] with duration over ' + cfg.rnrSec + 's — removed from billing and from the raw file']);
+  summary.push(['Language', 'bot name matched against: ' + cfg.regionalKeys.join(', ') + '. No match = Hindi.']);
+  summary.push(['Sub-disposition', 'where a report splits this across two columns, the first non-empty value is used']);
+  summary.push(['Non-numeric durations', ctx.badDur + ' rows billed as zero']);
+  summary.push(['Duplicate call IDs', ctx.dupes + (cfg.dropDupes ? ' found and removed' : ' found, kept and billed')]);
+
+  const bots = [...ctx.bots.values()].sort((a,c) => c.pulse - a.pulse);
+  const botRows = [[b('Bot name'), b('Detected language'), b('Billed as'), b('Calls'), b('Billed seconds'), b('Minute pulses'), b('Rate'), b('Cost')]];
+  bots.forEach(x => {
+    const rate = x.bucket === 'Hindi' ? cfg.hRate : cfg.rRate;
+    botRows.push([x.bot, x.lang, x.bucket, x.calls, Math.round(x.sec), x.pulse, rate, +(x.pulse * rate).toFixed(2)]);
+  });
+
+  const skipRows = [[b('File'), b('Reason'), b('Bot name'), b('Disposition'), b('Duration (sec)'), b('Call / session ID')]].concat(ctx.skipped);
+  if(ctx.skippedCount > ctx.skipped.length) skipRows.push(['… and ' + (ctx.skippedCount - ctx.skipped.length) + ' more rows, not listed']);
+
+  /* Day-wise pulses and cost. Costs are formulas against the rate so the sheet stays
+     auditable in Excel and reconciles to the Invoice Working total by construction. */
+  const days = [...ctx.days.values()].sort((a, c) => a.day < c.day ? -1 : a.day > c.day ? 1 : 0);
+  const dayRows = [[b('Date'), b('Hindi calls'), b('Hindi pulses'), b('Hindi cost'),
+                    b('Regional calls'), b('Regional pulses'), b('Regional cost'),
+                    b('Total pulses'), b('Total cost')]];
+  days.forEach((d, i) => {
+    const r = i + 2;
+    dayRows.push([dmy(d.day), d.Hindi.calls, d.Hindi.pulse,
+      { f:'C' + r + '*' + cfg.hRate, v:+(d.Hindi.pulse * cfg.hRate).toFixed(2), z:1 },
+      d.Regional.calls, d.Regional.pulse,
+      { f:'F' + r + '*' + cfg.rRate, v:+(d.Regional.pulse * cfg.rRate).toFixed(2), z:1 },
+      { f:'C' + r + '+F' + r, v:d.Hindi.pulse + d.Regional.pulse },
+      { f:'D' + r + '+G' + r, v:+(d.Hindi.pulse * cfg.hRate + d.Regional.pulse * cfg.rRate).toFixed(2), z:1 }]);
+  });
+  if(ctx.noDate) dayRows.push(['Date not readable', null, null, null, null, null, null, ctx.noDate, null]);
+  if(days.length){
+    const last = days.length + 1;
+    dayRows.push([b('Total'),
+      { f:'SUM(B2:B' + last + ')', v:days.reduce((a,d) => a + d.Hindi.calls, 0) },
+      { f:'SUM(C2:C' + last + ')', v:days.reduce((a,d) => a + d.Hindi.pulse, 0) },
+      { f:'SUM(D2:D' + last + ')', v:hCost, z:1 },
+      { f:'SUM(E2:E' + last + ')', v:days.reduce((a,d) => a + d.Regional.calls, 0) },
+      { f:'SUM(F2:F' + last + ')', v:days.reduce((a,d) => a + d.Regional.pulse, 0) },
+      { f:'SUM(G2:G' + last + ')', v:rCost, z:1 },
+      { f:'SUM(H2:H' + last + ')', v:H.pulse + R.pulse },
+      { f:'SUM(I2:I' + last + ')', v:+(hCost + rCost).toFixed(2), z:1 }]);
+  }
+
+  return XW.write([
+    { name:'Invoice Working', rows:invoice, cols:[38,20,14,16] },
+    { name:'Day-wise', rows:dayRows, cols:[14,12,13,14,15,16,15,13,14] },
+    { name:'Summary', rows:summary, cols:[46,22,14,13,14,22,14,16] },
+    { name:'Bot-wise', rows:botRows, cols:[38,20,11,9,15,14,8,14] },
+    { name:'Skipped calls', rows:skipRows, cols:[34,20,34,18,14,40] }
+  ]);
+}
+
+function dmy(iso){
+  if(!iso) return null;
+  const p = iso.split('-');
+  return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : iso;
+}
+function summarise(ctx){
+  const rows = [...ctx.groups.values()].map(g => {
+    const store = ctx.paid[g.bucket];
+    const hasPaid = store && store.files.length;
+    let success = null, successConn = null;
+    if(hasPaid){
+      const paidIn = set => { let n = 0; set.forEach(k => {
+        const v = k.slice(2);
+        if(k[0] === 'L' ? store.loans.has(v) : store.phones.has(v)) n++; }); return n; };
+      success = paidIn(g.all);        // every allocated account, dialled or not
+      successConn = paidIn(g.conn);   // the connected subset, kept for reference
+    }
+    return { product:g.product, bucket:g.bucket, base:g.all.size, conn:g.conn.size,
+             talk:g.talk, pulse:g.pulse, first:g.first, last:g.last, success:success, successConn:successConn,
+             lt30n:g.lt30n, lt30s:g.lt30s, lt10n:g.lt10n, lt10s:g.lt10s };
+  });
+  rows.sort((a,b) => a.product === b.product ? a.bucket.localeCompare(b.bucket) : a.product.localeCompare(b.product));
+  return rows;
+}
+async function buildProductSummary(ctx, cfg, rows){
+  const b = v => ({ bold:1, v:v });
+  const aoa = [[ b('LOB'), b('Type of Campaign (Pre/Post)'), b('Base Count'), b('Start Date'), b('End Date'),
+    b('Contacted Count'), b('Total Talktime (mins)'), b('Total Mins Deducted'),
+    b('Count of Success Payment'), b('Success Payment/Base %'),
+    b('Less then 30 Sec_Min'), b('Less then 30 Sec_Acc'),
+    b('Less then 10 Sec_Min'), b('Less then 10 Sec_Acc') ]];
+  let base = 0, conn = 0, talk = 0, pulse = 0, succ = 0, anySucc = false;
+  let a30n = 0, a30s = 0, a10n = 0, a10s = 0;
+  const mins = sec => Math.round(sec / 60 * 100) / 100;
+  rows.forEach(r => {
+    aoa.push([ r.product, r.bucket, r.base, dmy(r.first), dmy(r.last), r.conn,
+      Math.round(r.talk / 60), r.pulse,
+      r.success == null ? 'no paid file' : r.success,
+      r.success == null || !r.base ? null : { pct: r.success / r.base },
+      mins(r.lt30s), r.lt30n, mins(r.lt10s), r.lt10n ]);
+    base += r.base; conn += r.conn; talk += r.talk; pulse += r.pulse;
+    a30n += r.lt30n; a30s += r.lt30s; a10n += r.lt10n; a10s += r.lt10s;
+    if(r.success != null){ succ += r.success; anySucc = true; }
+  });
+  aoa.push([ b('TOTAL'), null, base, null, null, conn, Math.round(talk / 60), pulse,
+    anySucc ? succ : null, anySucc && base ? { pct: succ / base } : null,
+    mins(a30s), a30n, mins(a10s), a10n ]);
+  aoa.push([]);
+  aoa.push([b('Billing period'), cfg.period]);
+  aoa.push(['Base Count', 'unique customers in the allocation, by loan account number']);
+  aoa.push(['Contacted Count', 'unique customers with at least one connected call']);
+  aoa.push(['Total Talktime', 'sum of connected-call duration']);
+  aoa.push(['Total Mins Deducted', 'sum of minute pulses billed']);
+  aoa.push(['Count of Success Payment', 'every allocated customer found in the paid file for that bucket, whether or not the call connected']);
+  aoa.push(['Success Payment/Base %', 'Count of Success Payment divided by Base Count']);
+  aoa.push(['Less then 30 Sec_Min / _Acc', 'talktime in minutes, and number of calls, for connected calls under ' + SHORT_A + ' seconds']);
+  aoa.push(['Less then 10 Sec_Min / _Acc', 'same for connected calls under ' + SHORT_B + ' seconds — these calls are also counted in the under-' + SHORT_A + '-second columns']);
+  aoa.push(['Paid statuses counted', cfg.paidWords.join(', ') + '  —  never counted: ' + cfg.notPaidWords.join(', ')]);
+  const pf = [];
+  ['PreDue','PostDue'].forEach(k => ctx.paid[k].files.forEach(f =>
+    pf.push(f.bucket + ': ' + f.name + ' — ' + f.paid + ' paid customers, keyed on ' + f.keyCol +
+            (f.statusCols.length ? ', status from ' + f.statusCols.join(' / ') : ', no status column'))));
+  aoa.push(['Paid files used', pf.length ? pf.join('  |  ') : 'none uploaded']);
+  return XW.write([{ name:'Product Summary', rows:aoa,
+    cols:[24,26,12,12,12,16,20,20,24,24,19,19,19,19] }]);
+}
+
+/* ---------------- run ---------------- */
+$('run').onclick = async () => {
+  const cfg = readCfg();
+  const ctx = newCtx();
+  $('run').disabled = true; $('progWrap').style.display = 'block';
+  $('issues').innerHTML = ''; $('results').style.display = 'none';
+  const outputs = [];
+  const callFiles = files.filter(f => f.role === 'calls');
+  const paidFiles = files.filter(f => f.role !== 'calls');
+
+  try{
+    if(!callFiles.length) throw new Error('No call report uploaded — at least one file must be set to “Call report”.');
+    for(const entry of paidFiles){
+      $('progText').textContent = 'Reading ' + entry.file.name + '…';
+      await tick();
+      const info = await loadPaidFile(entry, ctx, cfg);
+      if(!info.paid) ctx.issues.push(['warn', entry.file.name + ': no paid customers found in it.']);
+    }
+    for(let i = 0; i < callFiles.length; i++){
+      const entry = callFiles[i];
+      const onProg = (frac, rows) => {
+        const overall = (i + frac) / callFiles.length;
+        $('progBar').style.width = (overall * 100).toFixed(1) + '%';
+        $('progText').textContent = 'File ' + (i+1) + '/' + callFiles.length + ' · ' + entry.file.name +
+          (rows ? ' · ' + fmt(rows) + ' rows read' : '');
+      };
+      onProg(0, 0); await tick();
+      if(entry.kind !== 'csv' && entry.file.size > 80 * 1048576)
+        ctx.issues.push([ 'warn', entry.file.name + ' is ' + (entry.file.size / 1048576).toFixed(0) +
+          ' MB. Excel reports this large have to be loaded whole and may exhaust the browser\u2019s memory — ' +
+          'if this run fails or the tab reloads, export the same report as CSV, which is read in a stream and has no size limit.' ]);
+      const res = entry.kind === 'csv'
+        ? await processCsv(entry, cfg, ctx, onProg)
+        : await processXlsx(entry, cfg, ctx, onProg);
+      if(!res.hasDisp) ctx.issues.push([ 'warn', res.name + ': no disposition column found — RNR calls were not filtered.' ]);
+      if(!res.hasBot) ctx.issues.push([ 'warn', res.name + ': no bot name column found — every call billed as Hindi.' ]);
+      ctx.perFile.push(res);
+      outputs.push(res);
+      await tick();
+    }
+
+    $('progText').textContent = 'Building the working file…';
+    await tick();
+    const wbBlob = await buildWorkbook(ctx, cfg);
+    const sumRows = summarise(ctx);
+    const sumBlob = await buildProductSummary(ctx, cfg, sumRows);
+    $('progBar').style.width = '100%';
+    $('progText').textContent = 'Done.';
+    render(ctx, cfg, outputs, wbBlob, sumBlob, sumRows);
+  }catch(err){
+    $('issues').innerHTML = '<div class="alert bad">' + err.message + '</div>';
+    $('progText').textContent = 'Stopped.';
+  }
+  $('run').disabled = false;
+};
+
+function render(ctx, cfg, outputs, wbBlob, sumBlob, sumRows){
+  const H = ctx.totals.Hindi, R = ctx.totals.Regional;
+  const hCost = H.pulse * cfg.hRate, rCost = R.pulse * cfg.rRate;
+  const rowsIn = ctx.perFile.reduce((a,r) => a + r.rowsIn, 0);
+  const rowsOut = ctx.perFile.reduce((a,r) => a + r.rowsOut, 0);
+
+  $('kpis').innerHTML =
+    kpi('Total minute pulses', fmt(H.pulse + R.pulse), fmt(H.calls + R.calls) + ' billed calls', 'gold') +
+    kpi('Hindi pulses', fmt(H.pulse), fmt(H.calls) + ' calls · ' + money(hCost), 'h') +
+    kpi('Regional pulses', fmt(R.pulse), fmt(R.calls) + ' calls · ' + money(rCost), 'r') +
+    kpi('Grand total', money(hCost + rCost), 'excl. taxes', 'gold') +
+    kpi('Connected calls', fmt(ctx.perFile.reduce((a,r) => a + (r.kept || 0), 0)), 'rows in the raw dump', '') +
+    kpi('Calls skipped', fmt(ctx.skippedCount), 'RNR over ' + cfg.rnrSec + 's' + (cfg.dropDupes ? ' + duplicates' : ''), '');
+
+  $('invTable').innerHTML =
+    '<tr><th>Details</th><th class="num">Minute Pulse (Total)</th><th>Pricing</th><th class="num">Total Cost</th></tr>' +
+    '<tr><td>Recurring Gen AI Voicebot (Hindi)</td><td class="num">' + fmt(H.pulse) + '</td><td>' + cfg.hBase + ' + ' + cfg.hAdd + '</td><td class="num">' + money(hCost) + '</td></tr>' +
+    '<tr><td>Recurring Gen AI Voicebot (Regional)</td><td class="num">' + fmt(R.pulse) + '</td><td>' + cfg.rBase + ' + ' + cfg.rAdd + '</td><td class="num">' + money(rCost) + '</td></tr>' +
+    '<tr><td></td><td class="num" style="color:var(--gold)">' + fmt(H.pulse + R.pulse) + '</td><td style="color:var(--gold)">Grand Total</td><td class="num" style="color:var(--gold)">' + money(hCost + rCost) + '</td></tr>';
+
+  const kept = ctx.perFile.reduce((a,r) => a + (r.kept || 0), 0);
+  const balanced = rowsIn === rowsOut + ctx.skippedCount;
+  let notes = '<div class="alert ' + (balanced ? 'ok' : 'bad') + '">' +
+    fmt(rowsIn) + ' rows read · ' + fmt(ctx.skippedCount) + ' skipped · ' + fmt(rowsOut) + ' counted, of which ' +
+    fmt(kept) + ' connected calls carry the pulses and go into the dump' +
+    (balanced ? '.' : ' — does not reconcile, check the file table.') + '</div>';
+  if(cfg.zeroPulse) notes += '<div class="alert warn">Zero-duration calls are being billed as 1 pulse, but they are not connected calls, so they will not appear in the raw dump. The dump will not add up to the invoice.</div>';
+  const miss = {};
+  ctx.perFile.forEach(r => (r.missing || []).forEach(m => { (miss[m] = miss[m] || []).push(r.name); }));
+  Object.keys(miss).forEach(m => notes += '<div class="alert warn">No “' + m + '” column found in ' + miss[m].join(', ') + ' — that field is missing from the dump.</div>');
+  if(ctx.dupes) notes += '<div class="alert warn">' + fmt(ctx.dupes) + ' duplicate call IDs across the uploaded files' +
+    (cfg.dropDupes ? ' — removed from billing.' : ' — still billed. Tick “Drop duplicate call IDs” if these files overlap.') + '</div>';
+  if(ctx.badDur) notes += '<div class="alert warn">' + fmt(ctx.badDur) +
+    ' row' + (ctx.badDur > 1 ? 's have' : ' has') + ' a duration that is not a number (e.g. “running”) — billed as zero. They are listed in the raw file, unchanged.</div>';
+  ctx.issues.forEach(([lvl, msg]) => notes += '<div class="alert ' + lvl + '">' + msg + '</div>');
+  $('checkNote').innerHTML = notes;
+
+  const dl = $('dlRow');
+  dl.innerHTML = '';
+  const wbName = 'Muthoot_Invoice_Working_' + cfg.period.replace(/[^\w\-]+/g,'_') + '.xlsx';
+  const mk = (label, blob, name, primary) => {
+    const b = document.createElement('button');
+    b.className = 'dl' + (primary ? ' primary' : ''); b.textContent = label;
+    b.onclick = () => download(blob, name); dl.appendChild(b); return b;
+  };
+  mk('↓ Invoice working file', wbBlob, wbName, true);
+  const sumName = 'Muthoot_Product_Summary_' + cfg.period.replace(/[^\w\-]+/g,'_') + '.xlsx';
+  mk('↓ Product summary', sumBlob, sumName, true);
+  outputs.forEach(o => mk('↓ ' + o.outName, o.blob, o.outName));
+  if(outputs.length > 1){
+    const all = document.createElement('button');
+    all.className = 'dl'; all.textContent = '↓ Download everything';
+    all.onclick = () => { download(wbBlob, wbName); setTimeout(() => download(sumBlob, sumName), 600);
+      outputs.forEach((o, i) => setTimeout(() => download(o.blob, o.outName), 600 * (i+2))); };
+    dl.appendChild(all);
+  }
+  $('dlNote').textContent = 'Each dump holds the connected calls from that file, with the original column headers and a “' + PULSE_COL + '” column.';
+
+  let ft = '<tr><th>File</th><th>Format</th><th class="num">Rows in</th><th class="num">Skipped</th><th class="num">Counted</th><th class="num">In dump</th><th class="num">Hindi pulses</th><th class="num">Regional pulses</th></tr>';
+  ctx.perFile.forEach(r => {
+    const cls = r.format === 'VOX' ? 'vox' : (r.format === 'Seamless' ? 'seamless' : '');
+    ft += '<tr><td>' + r.name + '</td><td><span class="pill ' + cls + '">' + r.format + '</span></td>' +
+      '<td class="num">' + fmt(r.rowsIn) + '</td><td class="num">' + fmt(r.skipped) + '</td>' +
+      '<td class="num">' + fmt(r.rowsOut) + '</td><td class="num">' + fmt(r.kept) + '</td>' +
+      '<td class="num">' + fmt(r.fileAgg.Hindi.pulse) + '</td>' +
+      '<td class="num">' + fmt(r.fileAgg.Regional.pulse) + '</td></tr>';
+  });
+  $('fileTable').innerHTML = ft;
+
+  let sh = '<tr><th>LOB</th><th>Pre/Post</th><th class="num">Base</th><th>Start</th><th>End</th>' +
+    '<th class="num">Contacted</th><th class="num">Talktime (mins)</th><th class="num">Mins deducted</th>' +
+    '<th class="num">Success</th><th class="num">% of base</th><th class="num">of connected</th>' +
+    '<th class="num">&lt;30s</th><th class="num">&lt;10s</th></tr>';
+  sumRows.forEach(r => {
+    sh += '<tr><td>' + r.product + '</td><td>' + r.bucket + '</td><td class="num">' + fmt(r.base) + '</td>' +
+      '<td class="num">' + (dmy(r.first) || '—') + '</td><td class="num">' + (dmy(r.last) || '—') + '</td>' +
+      '<td class="num">' + fmt(r.conn) + '</td><td class="num">' + fmt(Math.round(r.talk/60)) + '</td>' +
+      '<td class="num">' + fmt(r.pulse) + '</td>' +
+      '<td class="num">' + (r.success == null ? '—' : fmt(r.success)) + '</td>' +
+      '<td class="num">' + (r.success == null || !r.base ? '—' : (100 * r.success / r.base).toFixed(1) + '%') + '</td>' +
+      '<td class="num" style="color:var(--muted)">' + (r.successConn == null || !r.conn ? '—' :
+        fmt(r.successConn) + ' · ' + (100 * r.successConn / r.conn).toFixed(1) + '%') + '</td>' +
+      '<td class="num">' + fmt(r.lt30n) + ' · ' + (r.lt30s/60).toFixed(1) + 'm</td>' +
+      '<td class="num">' + fmt(r.lt10n) + ' · ' + (r.lt10s/60).toFixed(1) + 'm</td></tr>';
+  });
+  $('sumTable').innerHTML = sh;
+  const pfCount = ctx.paid.PreDue.files.length + ctx.paid.PostDue.files.length;
+  let sn = '';
+  if(!pfCount) sn += '<div class="alert warn">No paid file uploaded, so success payment is blank rather than zero. Add the Enach file for PreDue and the PostDue paid file to fill those columns.</div>';
+  ['PreDue','PostDue'].forEach(k => ctx.paid[k].files.forEach(f => {
+    sn += '<div class="alert ok">' + k + ' paid file “' + f.name + '”: ' + fmt(f.paid) + ' paid customers keyed on ' + f.keyCol +
+      (f.statusCols.length ? ', success read from ' + f.statusCols.join(' / ') + ' (' + fmt(f.rejected) + ' non-success rows ignored)' : ', no status column so every row counted') + '.</div>';
+  }));
+  if(sumRows.some(r => r.bucket === 'Unknown')) sn += '<div class="alert warn">Some calls carry neither PreDue nor PostDue in the bot or campaign name, so they are grouped as Unknown and cannot be matched to a paid file.</div>';
+  if(sumRows.some(r => r.product === 'NOT STATED')) sn += '<div class="alert warn">Some calls have no sub_product value, grouped as NOT STATED.</div>';
+  $('sumNote').innerHTML = sn;
+
+  const bots = [...ctx.bots.values()].sort((a,b) => b.pulse - a.pulse);
+  let bt = '<tr><th>Bot name</th><th>Detected language</th><th>Billed as</th><th class="num">Calls</th><th class="num">Minutes billed</th><th class="num">Pulses</th><th class="num">Cost</th></tr>';
+  bots.forEach(b => {
+    const rate = b.bucket === 'Hindi' ? cfg.hRate : cfg.rRate;
+    const col = b.bucket === 'Hindi' ? 'var(--hindi)' : 'var(--regional)';
+    bt += '<tr><td>' + b.bot + '</td><td style="color:var(--muted)">' + b.lang + '</td>' +
+      '<td style="color:' + col + '">' + b.bucket + '</td><td class="num">' + fmt(b.calls) + '</td>' +
+      '<td class="num">' + fmt(Math.round(b.sec/60)) + '</td><td class="num">' + fmt(b.pulse) + '</td>' +
+      '<td class="num">' + money(b.pulse * rate) + '</td></tr>';
+  });
+  $('botTable').innerHTML = bt;
+
+  $('results').style.display = 'block';
+  $('results').scrollIntoView({ behavior:'smooth', block:'start' });
+}
+function kpi(k, v, n, cls){
+  return '<div class="kpi"><div class="k">' + k + '</div><div class="v ' + cls + '">' + v + '</div><div class="n">' + n + '</div></div>';
+}
+</script>
