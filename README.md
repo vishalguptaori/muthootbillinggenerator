@@ -20,9 +20,9 @@ install, no server, no build step.
 
 ## Rates
 
-Rate fields ship **blank by design** — no pricing is stored in this repository.
-Enter the Hindi and regional rates before generating; the tool refuses to run
-without them rather than silently producing a zero invoice.
+Default rates are pre-filled (Hindi 2.20 + 0.44, regional 2.80 + 0.44) and can
+be edited before generating. If a rate field is cleared, the tool refuses to run
+rather than silently producing a zero invoice.
 
 ## Privacy
 

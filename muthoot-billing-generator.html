@@ -122,18 +122,18 @@ button.dl.primary{border-color:var(--gold);color:var(--gold)}
     <div>
       <label>Hindi rate (₹ / pulse)</label>
       <div class="row" style="gap:6px">
-        <input type="number" id="hBase" value="" placeholder="0.00" step="0.01" style="flex:1">
+        <input type="number" id="hBase" value="2.2" step="0.01" style="flex:1">
         <span style="color:var(--muted)">+</span>
-        <input type="number" id="hAdd" value="" placeholder="0.00" step="0.01" style="flex:1">
+        <input type="number" id="hAdd" value="0.44" step="0.01" style="flex:1">
       </div>
       <div class="hint">Effective <b id="hEff">₹2.64</b></div>
     </div>
     <div>
       <label>Regional rate (₹ / pulse)</label>
       <div class="row" style="gap:6px">
-        <input type="number" id="rBase" value="" placeholder="0.00" step="0.01" style="flex:1">
+        <input type="number" id="rBase" value="2.8" step="0.01" style="flex:1">
         <span style="color:var(--muted)">+</span>
-        <input type="number" id="rAdd" value="" placeholder="0.00" step="0.01" style="flex:1">
+        <input type="number" id="rAdd" value="0.44" step="0.01" style="flex:1">
       </div>
       <div class="hint">Effective <b id="rEff">₹3.24</b></div>
     </div>
@@ -1178,7 +1178,7 @@ $('run').onclick = async () => {
 
   try{
     if(!callFiles.length) throw new Error('No call report uploaded — at least one file must be set to “Call report”.');
-    if(!(cfg.hRate > 0) || !(cfg.rRate > 0)) throw new Error('Enter the Hindi and regional rates before generating. They are left blank so that no pricing is stored in this file.');
+    if(!(cfg.hRate > 0) || !(cfg.rRate > 0)) throw new Error('Enter the Hindi and regional rates before generating.');
     for(const entry of paidFiles){
       $('progText').textContent = 'Reading ' + entry.file.name + '…';
       await tick();
