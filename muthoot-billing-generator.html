@@ -122,18 +122,18 @@ button.dl.primary{border-color:var(--gold);color:var(--gold)}
     <div>
       <label>Hindi rate (₹ / pulse)</label>
       <div class="row" style="gap:6px">
-        <input type="number" id="hBase" value="2.2" step="0.01" style="flex:1">
+        <input type="number" id="hBase" value="" placeholder="0.00" step="0.01" style="flex:1">
         <span style="color:var(--muted)">+</span>
-        <input type="number" id="hAdd" value="0.44" step="0.01" style="flex:1">
+        <input type="number" id="hAdd" value="" placeholder="0.00" step="0.01" style="flex:1">
       </div>
       <div class="hint">Effective <b id="hEff">₹2.64</b></div>
     </div>
     <div>
       <label>Regional rate (₹ / pulse)</label>
       <div class="row" style="gap:6px">
-        <input type="number" id="rBase" value="2.8" step="0.01" style="flex:1">
+        <input type="number" id="rBase" value="" placeholder="0.00" step="0.01" style="flex:1">
         <span style="color:var(--muted)">+</span>
-        <input type="number" id="rAdd" value="0.44" step="0.01" style="flex:1">
+        <input type="number" id="rAdd" value="" placeholder="0.00" step="0.01" style="flex:1">
       </div>
       <div class="hint">Effective <b id="rEff">₹3.24</b></div>
     </div>
@@ -167,6 +167,10 @@ button.dl.primary{border-color:var(--gold);color:var(--gold)}
   <div class="check"><input type="checkbox" id="skipTest" checked>
     <span>Also skip rows flagged <span style="font-family:var(--mono)">is_test = true</span>
       <small>On by default. Test calls are logged in the Skipped sheet, never billed. Untick to bill them.</small></span></div>
+
+  <div class="check"><input type="checkbox" id="skipNoLob" checked>
+    <span>Treat a call with no LOB mapped as a test call
+      <small>On by default. A blank LOB means the call was not tied to a line of business, so it is logged in the Skipped sheet and never billed. Ignored when the report carries no LOB column at all.</small></span></div>
 
   <div class="ladder" style="margin-top:10px">
     <span class="rung">Dump keeps</span>
@@ -668,6 +672,7 @@ function readCfg(){
     notPaidWords: $('notPaidWords').value.split(',').map(s => s.trim().toLowerCase()).filter(Boolean),
     notPaidRe: statusWord($('notPaidWords').value.split(',').map(s => s.trim()).filter(Boolean)),
     skipTest: $('skipTest').checked,
+    skipNoLob: $('skipNoLob').checked,
     regionalKeys: $('regKeys').value.split(',').map(s => s.trim().toLowerCase()).filter(Boolean),
     zeroPulse: $('zeroPulse').checked, dropDupes: $('dropDupes').checked, forceCsv: $('forceCsv').checked,
     fullDump: $('fullDump').checked,
@@ -725,7 +730,14 @@ function excludeReason(row, ix, cfg){
     const v = String(row[ix.test] == null ? '' : row[ix.test]).trim().toLowerCase();
     if(v === 'true' || v === 'yes' || v === '1') return 'test call';
   }
+  /* No line of business against the call means it was never tied to a billable campaign.
+     Guarded on ix.prod > -1: a report with no LOB column at all must not void every row. */
+  if(cfg.skipNoLob && ix.prod > -1 && !hasLob(row[ix.prod])) return 'test call — no LOB mapped';
   return null;
+}
+const NO_LOB = ['', '-', '--', 'na', 'n/a', 'nil', 'null', 'none', 'not stated', 'unknown'];
+function hasLob(v){
+  return NO_LOB.indexOf(String(v == null ? '' : v).trim().toLowerCase()) === -1;
 }
 /* Pre-due vs Post-due, read off the bot name and then the campaign name */
 function bucketDue(botName, campName){
@@ -931,7 +943,7 @@ async function processCsv(entry, cfg, ctx, onProg){
   }
   return { name:f.name, format: ix.format, rowsIn: st.rowsIn, rowsOut: st.rowsOut, skipped: st.skipped,
            kept: st.kept, missing: plan.missing, fileAgg,
-           hasDisp: ix.disp > -1, hasBot: ix.bot > -1, blob, outName };
+           hasDisp: ix.disp > -1, hasBot: ix.bot > -1, hasLobCol: ix.prod > -1, blob, outName };
 }
 
 async function processXlsx(entry, cfg, ctx, onProg){
@@ -995,8 +1007,9 @@ async function processXlsx(entry, cfg, ctx, onProg){
     outName = base + '_billing_dump.xlsx';
   }
   return { name:f.name, format: ix.format, rowsIn, rowsOut, skipped, kept, missing: plan.missing, fileAgg,
-           hasDisp: ix.disp > -1, hasBot: ix.bot > -1, blob, outName };
+           hasDisp: ix.disp > -1, hasBot: ix.bot > -1, hasLobCol: ix.prod > -1, blob, outName };
 }
+
 /* ---------------- working file ---------------- */
 async function buildWorkbook(ctx, cfg){
   const H = ctx.totals.Hindi, R = ctx.totals.Regional;
@@ -1031,6 +1044,7 @@ async function buildWorkbook(ctx, cfg){
   summary.push(['Zero-duration calls', cfg.zeroPulse ? 'billed as 1 pulse' : 'not billed']);
   summary.push(['Call types excluded', cfg.skipTypes.length ? cfg.skipTypes.join(', ') + ' — removed from billing and from the dump' : 'none']);
   summary.push(['Test calls', cfg.skipTest ? 'rows flagged is_test = true are removed from billing and from the dump' : 'billed like any other call']);
+  summary.push(['Calls with no LOB', cfg.skipNoLob ? 'treated as test calls — removed from billing and from the dump' : 'billed like any other call']);
   summary.push(['RNR exclusion', 'disposition in [' + cfg.rnrLabels.join(', ') + '] with duration over ' + cfg.rnrSec + 's — removed from billing and from the raw file']);
   summary.push(['Language', 'bot name matched against: ' + cfg.regionalKeys.join(', ') + '. No match = Hindi.']);
   summary.push(['Sub-disposition', 'where a report splits this across two columns, the first non-empty value is used']);
@@ -1164,6 +1178,7 @@ $('run').onclick = async () => {
 
   try{
     if(!callFiles.length) throw new Error('No call report uploaded — at least one file must be set to “Call report”.');
+    if(!(cfg.hRate > 0) || !(cfg.rRate > 0)) throw new Error('Enter the Hindi and regional rates before generating. They are left blank so that no pricing is stored in this file.');
     for(const entry of paidFiles){
       $('progText').textContent = 'Reading ' + entry.file.name + '…';
       await tick();
@@ -1188,6 +1203,7 @@ $('run').onclick = async () => {
         : await processXlsx(entry, cfg, ctx, onProg);
       if(!res.hasDisp) ctx.issues.push([ 'warn', res.name + ': no disposition column found — RNR calls were not filtered.' ]);
       if(!res.hasBot) ctx.issues.push([ 'warn', res.name + ': no bot name column found — every call billed as Hindi.' ]);
+      if(cfg.skipNoLob && !res.hasLobCol) ctx.issues.push([ 'warn', res.name + ': no LOB column found, so the no-LOB rule was not applied to it — every call in this file was billed. Check the export includes the LOB column.' ]);
       ctx.perFile.push(res);
       outputs.push(res);
       await tick();

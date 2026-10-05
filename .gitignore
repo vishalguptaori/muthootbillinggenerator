@@ -1,0 +1,15 @@
+# Never commit client data or generated output
+*.csv
+*.xlsx
+*.xls
+*.XLSX
+*.XLS
+*.zip
+*.pdf
+
+# Allow documentation assets if ever needed
+!docs/**/*.png
+
+.DS_Store
+Thumbs.db
+node_modules/
